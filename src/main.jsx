@@ -25,7 +25,15 @@ function App(){
   const [stages, setStages] = useState([blankStage(1)])
   const [current, setCurrent] = useState(0)
   const [evaluations, setEvaluations] = useState(()=>{
-    try { return JSON.parse(localStorage.getItem('leanJourneyEvaluations') || '[]') } catch { return [] }
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return []
+      const raw = window.localStorage.getItem('leanJourneyEvaluations')
+      const parsed = raw ? JSON.parse(raw) : []
+      return Array.isArray(parsed) ? parsed : []
+    } catch (err) {
+      console.warn('Não foi possível carregar avaliações salvas:', err)
+      return []
+    }
   })
   const [selectedEvaluationId, setSelectedEvaluationId] = useState(null)
   const [editingId, setEditingId] = useState(null)
@@ -50,7 +58,20 @@ function App(){
 
   const persistEvaluations = (items) => {
     setEvaluations(items)
-    localStorage.setItem('leanJourneyEvaluations', JSON.stringify(items))
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('leanJourneyEvaluations', JSON.stringify(items))
+      }
+    } catch (err) {
+      console.warn('Avaliação mantida nesta sessão, mas não foi possível salvar no navegador:', err)
+    }
+  }
+
+  const makeId = () => {
+    try {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+    } catch {}
+    return `eval-${Date.now()}-${Math.random().toString(36).slice(2,10)}`
   }
 
   const newAssessment = () => {
@@ -134,27 +155,43 @@ function App(){
   },[stages])
 
   const finish = () => {
-    const now = new Date()
-    const record = {
-      id: editingId || crypto.randomUUID(),
-      createdAt: editingId ? (evaluations.find(x=>x.id===editingId)?.createdAt || now.toISOString()) : now.toISOString(),
-      updatedAt: now.toISOString(),
-      meta: {...meta},
-      stages: stages.map(x=>({...x, desperdicios:[...x.desperdicios]})),
-      metrics: {
-        lead: summary.lead, proc: summary.proc, wait: summary.wait, value: summary.value,
-        toBeLead: summary.toBeLead, reduction: summary.reduction,
-        gargalos: stages.filter(x=>x.gargalos?.trim()).length,
-        desperdicios: stages.reduce((a,x)=>a+x.desperdicios.length,0)
+    try {
+      const now = new Date()
+      const record = {
+        id: editingId || makeId(),
+        createdAt: editingId ? (evaluations.find(x=>x.id===editingId)?.createdAt || now.toISOString()) : now.toISOString(),
+        updatedAt: now.toISOString(),
+        meta: {...meta},
+        stages: stages.map(x=>({
+          ...x,
+          desperdicios: Array.isArray(x.desperdicios) ? [...x.desperdicios] : []
+        })),
+        metrics: {
+          lead: Number(summary?.lead) || 0,
+          proc: Number(summary?.proc) || 0,
+          wait: Number(summary?.wait) || 0,
+          value: Number(summary?.value) || 0,
+          toBeLead: Number(summary?.toBeLead) || 0,
+          reduction: Number(summary?.reduction) || 0,
+          gargalos: stages.filter(x=>x.gargalos?.trim()).length,
+          desperdicios: stages.reduce((a,x)=>a+(Array.isArray(x.desperdicios)?x.desperdicios.length:0),0)
+        }
       }
+
+      const next = editingId
+        ? evaluations.map(x=>x.id===editingId ? record : x)
+        : [record, ...evaluations]
+
+      persistEvaluations(next)
+      setEditingId(null)
+      setSelectedEvaluationId(record.id)
+      setScreen('dashboard')
+    } catch (err) {
+      console.error('Erro ao finalizar avaliação:', err)
+      // Falha segura: abre o dashboard mesmo que o salvamento do registro tenha algum problema.
+      setEditingId(null)
+      setScreen('dashboard')
     }
-    const next = editingId
-      ? evaluations.map(x=>x.id===editingId ? record : x)
-      : [record, ...evaluations]
-    persistEvaluations(next)
-    setEditingId(null)
-    setSelectedEvaluationId(record.id)
-    setScreen('dashboard')
   }
 
   const exportPDF = () => {

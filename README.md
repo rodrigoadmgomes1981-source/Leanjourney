@@ -57,3 +57,10 @@ Recursos:
 - Logo oficial ARPEN atualizada em `public/logo-arpen.png`.
 
 Observação: nesta versão os dados são persistidos em `localStorage`. Para uso multiusuário/online compartilhado, a próxima etapa recomendada é Supabase ou outro banco central.
+
+## Correção v2 — Finalizar Avaliação
+O fluxo de finalização foi blindado para:
+- abrir o Dashboard mesmo quando o navegador bloquear `localStorage`;
+- utilizar ID alternativo se `crypto.randomUUID()` não estiver disponível;
+- impedir que falhas de persistência interrompam a navegação;
+- normalizar métricas e listas antes do salvamento.
