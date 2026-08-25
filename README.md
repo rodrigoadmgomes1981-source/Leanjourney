@@ -35,3 +35,10 @@ Inclui classificação VA/NVA, criticidade automática, gargalo, VSM AS-IS, cen�
 - Comparação AS-IS × TO-BE
 - Ganho potencial em minutos e percentual
 - Estrutura pronta para evolução com persistência de responsável, prazo, custo e status
+
+
+## Identidade visual oficial
+Esta versão usa a logo oficial da ARPEN fornecida pelo usuário.
+Arquivo: `public/logo-arpen.png`.
+
+A logo foi incorporada para uso no sistema e também nas visualizações destinadas à impressão/exportação em PDF.

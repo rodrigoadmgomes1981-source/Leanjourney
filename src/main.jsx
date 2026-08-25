@@ -102,7 +102,7 @@ function App(){
 
 
   if(screen==='start'){
-    return <div className="app-shell">
+    return <div className="app-shell"><div className="print-logo-fixed"><ArpenLogo /></div>
       <header className="hero compact">
         <div className="hero-brand"><ArpenLogo inverse/></div>
         <div className="eyebrow">LEAN HEALTHCARE</div>
@@ -316,7 +316,7 @@ function App(){
 
   const s = stages[current]
   return <div className="app-shell">
-    <header className="topbar">
+    <header className="topbar"><div className="brand-official"><ArpenLogo /></div>
       <div className="topbar-brand"><ArpenLogo inverse/><div><span className="eyebrow">LEAN JOURNEY</span><strong>{meta.unidade}</strong></div></div>
       <div className="progress-text">Etapa {current+1} de {stages.length}</div>
     </header>
