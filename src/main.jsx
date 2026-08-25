@@ -16,10 +16,7 @@ const blankStage = (n) => ({
 })
 
 function ArpenLogo({inverse=false}){
-  return <div className={`arpen-logo ${inverse?'inverse':''}`} aria-label="Arpen Saúde">
-    <div className="arpen-symbol"><span/><span/><span/></div>
-    <div className="arpen-word"><strong>ARPEN</strong><small>SAÚDE</small></div>
-  </div>
+  return <img className={`arpen-logo-img ${inverse?'inverse':''}`} src="/logo-arpen.png" alt="ARPEN Saúde — Diagnóstico. Execução. Saúde." />
 }
 
 function App(){
@@ -27,6 +24,11 @@ function App(){
   const [meta, setMeta] = useState({ instituicao:'Unimed Araçatuba', unidade:'Pronto Atendimento', avaliador:'', jornada:'Adulto', turno:'Manhã' })
   const [stages, setStages] = useState([blankStage(1)])
   const [current, setCurrent] = useState(0)
+  const [evaluations, setEvaluations] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem('leanJourneyEvaluations') || '[]') } catch { return [] }
+  })
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState(null)
+  const [editingId, setEditingId] = useState(null)
 
   const updateStage = (field, value) => setStages(prev => prev.map((s,i)=> i===current ? {...s,[field]:value} : s))
 
@@ -44,6 +46,43 @@ function App(){
     if(stages.length===1) return
     setStages(stages.filter((_,i)=>i!==current))
     setCurrent(Math.max(0,current-1))
+  }
+
+  const persistEvaluations = (items) => {
+    setEvaluations(items)
+    localStorage.setItem('leanJourneyEvaluations', JSON.stringify(items))
+  }
+
+  const newAssessment = () => {
+    setMeta({ instituicao:'Unimed Araçatuba', unidade:'Pronto Atendimento', avaliador:'', jornada:'Adulto', turno:'Manhã' })
+    setStages([blankStage(1)])
+    setCurrent(0)
+    setEditingId(null)
+    setSelectedEvaluationId(null)
+    setScreen('start')
+  }
+
+  const openEvaluation = (item, mode='view') => {
+    setMeta(item.meta)
+    setStages(item.stages)
+    setCurrent(0)
+    setSelectedEvaluationId(item.id)
+    if(mode==='edit'){
+      setEditingId(item.id)
+      setScreen('mapping')
+    } else {
+      setEditingId(null)
+      setScreen('summary')
+    }
+  }
+
+  const deleteEvaluation = (id) => {
+    const item = evaluations.find(x=>x.id===id)
+    if(!item) return
+    if(window.confirm(`Apagar a avaliação de ${item.meta?.instituicao || 'esta instituição'}? Esta ação não poderá ser desfeita.`)){
+      persistEvaluations(evaluations.filter(x=>x.id!==id))
+      if(selectedEvaluationId===id) setSelectedEvaluationId(null)
+    }
   }
 
   const summary = useMemo(()=>{
@@ -94,7 +133,29 @@ function App(){
     return {proc,wait,lead,value,va,nvaNec,nvaWaste,dominant,hotspots,bottleneck,toBe,toBeLead,reduction,actions}
   },[stages])
 
-  const finish = ()=>setScreen('summary')
+  const finish = () => {
+    const now = new Date()
+    const record = {
+      id: editingId || crypto.randomUUID(),
+      createdAt: editingId ? (evaluations.find(x=>x.id===editingId)?.createdAt || now.toISOString()) : now.toISOString(),
+      updatedAt: now.toISOString(),
+      meta: {...meta},
+      stages: stages.map(x=>({...x, desperdicios:[...x.desperdicios]})),
+      metrics: {
+        lead: summary.lead, proc: summary.proc, wait: summary.wait, value: summary.value,
+        toBeLead: summary.toBeLead, reduction: summary.reduction,
+        gargalos: stages.filter(x=>x.gargalos?.trim()).length,
+        desperdicios: stages.reduce((a,x)=>a+x.desperdicios.length,0)
+      }
+    }
+    const next = editingId
+      ? evaluations.map(x=>x.id===editingId ? record : x)
+      : [record, ...evaluations]
+    persistEvaluations(next)
+    setEditingId(null)
+    setSelectedEvaluationId(record.id)
+    setScreen('dashboard')
+  }
 
   const exportPDF = () => {
     window.print()
@@ -119,7 +180,64 @@ function App(){
             <Select label="Tipo de jornada" value={meta.jornada} onChange={v=>setMeta({...meta,jornada:v})} options={['Adulto','Pediátrico','Outro']}/>
             <Select label="Turno" value={meta.turno} onChange={v=>setMeta({...meta,turno:v})} options={['Manhã','Tarde','Noite','Madrugada']}/>
           </div>
-          <button className="btn primary full" onClick={()=>setScreen('mapping')}>Iniciar mapeamento <ArrowRight size={18}/></button>
+          <button className="btn primary full" onClick={()=>setScreen('mapping')}>Iniciar mapeamento <ArrowRight size={18}/></button>{evaluations.length>0 && <button className="btn secondary full dashboard-shortcut" onClick={()=>setScreen('dashboard')}><LayoutDashboard size={18}/> Ver avaliações realizadas ({evaluations.length})</button>}
+        </section>
+      </main>
+    </div>
+  }
+
+  if(screen==='dashboard'){
+    const total = evaluations.length
+    const avgLead = total ? Math.round(evaluations.reduce((a,x)=>a+(x.metrics?.lead||0),0)/total) : 0
+    const avgReduction = total ? Math.round(evaluations.reduce((a,x)=>a+(x.metrics?.reduction||0),0)/total) : 0
+    const critical = evaluations.filter(x=>(x.metrics?.gargalos||0)>=3 || (x.metrics?.wait||0)>(x.metrics?.proc||0)).length
+    return <div className="app-shell dashboard-shell">
+      <header className="dashboard-header">
+        <div className="dashboard-brand"><ArpenLogo/></div>
+        <div className="dashboard-title"><span className="eyebrow">LEAN HEALTHCARE</span><h1>Dashboard de Avaliações</h1><p>Histórico completo dos mapeamentos da jornada do paciente.</p></div>
+        <button className="btn primary" onClick={newAssessment}><Plus size={18}/> Nova avaliação</button>
+      </header>
+      <main className="container dashboard-container">
+        <div className="dashboard-kpis">
+          <div className="dash-kpi"><LayoutDashboard/><div><small>Avaliações realizadas</small><strong>{total}</strong></div></div>
+          <div className="dash-kpi"><Clock3/><div><small>Lead Time médio</small><strong>{avgLead} min</strong></div></div>
+          <div className="dash-kpi"><TrendingDown/><div><small>Redução potencial média</small><strong>{avgReduction}%</strong></div></div>
+          <div className="dash-kpi"><AlertTriangle/><div><small>Avaliações críticas</small><strong>{critical}</strong></div></div>
+        </div>
+
+        <section className="card evaluations-card">
+          <div className="section-title-row">
+            <div><span className="section-kicker">HISTÓRICO</span><h2>Relação de avaliações realizadas</h2></div>
+            <span className="record-count">{total} registro{total===1?'':'s'}</span>
+          </div>
+          {evaluations.length===0 ? <div className="empty-dashboard">
+            <LayoutDashboard size={42}/><h3>Nenhuma avaliação concluída</h3><p>Finalize um mapeamento para ele aparecer neste dashboard.</p>
+            <button className="btn primary" onClick={newAssessment}><Plus size={18}/> Criar primeira avaliação</button>
+          </div> :
+          <div className="evaluations-table-wrap">
+            <table className="evaluations-table">
+              <thead><tr><th>Data</th><th>Instituição / Unidade</th><th>Avaliador</th><th>Jornada</th><th>Etapas</th><th>Lead Time</th><th>Espera</th><th>VA</th><th>Redução potencial</th><th>Ações</th></tr></thead>
+              <tbody>{evaluations.map(item=>{
+                const date = new Date(item.updatedAt||item.createdAt)
+                return <tr key={item.id} className={selectedEvaluationId===item.id?'recent-row':''}>
+                  <td><strong>{date.toLocaleDateString('pt-BR')}</strong><small>{date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</small></td>
+                  <td><strong>{item.meta?.instituicao}</strong><small>{item.meta?.unidade}</small></td>
+                  <td>{item.meta?.avaliador || '—'}</td>
+                  <td><span className="journey-badge">{item.meta?.jornada}</span><small>{item.meta?.turno}</small></td>
+                  <td>{item.stages?.length || 0}</td>
+                  <td><strong>{item.metrics?.lead || 0} min</strong></td>
+                  <td>{item.metrics?.wait || 0} min</td>
+                  <td>{item.metrics?.value || 0}%</td>
+                  <td><span className="reduction-badge">{item.metrics?.reduction || 0}%</span></td>
+                  <td><div className="row-actions">
+                    <button className="icon-action view" title="Visualizar avaliação" aria-label="Visualizar avaliação" onClick={()=>openEvaluation(item,'view')}><Eye size={18}/></button>
+                    <button className="icon-action edit" title="Editar avaliação" aria-label="Editar avaliação" onClick={()=>openEvaluation(item,'edit')}><Pencil size={18}/></button>
+                    <button className="icon-action delete" title="Apagar avaliação" aria-label="Apagar avaliação" onClick={()=>deleteEvaluation(item.id)}><Trash2 size={18}/></button>
+                  </div></td>
+                </tr>
+              })}</tbody>
+            </table>
+          </div>}
         </section>
       </main>
     </div>

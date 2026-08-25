@@ -42,3 +42,18 @@ Esta versão usa a logo oficial da ARPEN fornecida pelo usuário.
 Arquivo: `public/logo-arpen.png`.
 
 A logo foi incorporada para uso no sistema e também nas visualizações destinadas à impressão/exportação em PDF.
+
+
+## Dashboard de avaliações
+Ao finalizar uma avaliação, o sistema salva o registro no armazenamento local do navegador e direciona para o Dashboard de Avaliações.
+
+Recursos:
+- Histórico de todas as avaliações realizadas no navegador;
+- Visualizar (ícone de olho);
+- Editar (ícone de lápis);
+- Apagar com confirmação (ícone de lixeira);
+- KPIs consolidados: total de avaliações, Lead Time médio, redução potencial média e avaliações críticas;
+- Nova avaliação diretamente pelo dashboard;
+- Logo oficial ARPEN atualizada em `public/logo-arpen.png`.
+
+Observação: nesta versão os dados são persistidos em `localStorage`. Para uso multiusuário/online compartilhado, a próxima etapa recomendada é Supabase ou outro banco central.
