@@ -1,66 +1,21 @@
-# Lean Journey — Arpen Saúde | Unimed Araçatuba
+# Lean Journey ARPEN — versão estável
 
-Versão 2.0 responsiva em React + Vite.
+Projeto React + Vite reconstruído em base limpa.
 
-## Novidades
-- Mapa mental/fluxo visual completo no resumo final
-- Identificação de hotspots no próprio mapa
-- Exportação do relatório final em PDF
-- Identidade visual Arpen no sistema e no PDF
-- Resumo AS-IS, métricas Lean e análise estratégica Black Belt
-
-## Rodar localmente
+## Como rodar
 ```bash
 npm install
 npm run dev
 ```
 
-## Build de produção
-```bash
-npm run build
-```
+## Fluxo validado na estrutura
+1. Iniciar avaliação
+2. Preencher/adicionar etapas
+3. Finalizar avaliação
+4. Salvar avaliação
+5. Abrir Dashboard de Avaliações
+6. Visualizar, editar ou apagar
+7. Exportar resumo pelo comando de impressão do navegador (Salvar como PDF)
 
-> A marca visual incluída é uma representação vetorial integrada ao sistema. Para usar o arquivo oficial exato da Arpen, substitua o componente `ArpenLogo` pelo PNG/SVG oficial.
-
-
-## Upgrade VSM Executivo
-Inclui classificação VA/NVA, criticidade automática, gargalo, VSM AS-IS, cenário TO-BE sugerido e comparação de Lead Time.
-
-
-## Upgrade Gestão Executiva
-- Plano de Ação 5W2H gerado a partir das etapas
-- Classificação automática de impacto, esforço e prioridade
-- Identificação de Quick Wins
-- Matriz Impacto × Esforço
-- Comparação AS-IS × TO-BE
-- Ganho potencial em minutos e percentual
-- Estrutura pronta para evolução com persistência de responsável, prazo, custo e status
-
-
-## Identidade visual oficial
-Esta versão usa a logo oficial da ARPEN fornecida pelo usuário.
-Arquivo: `public/logo-arpen.png`.
-
-A logo foi incorporada para uso no sistema e também nas visualizações destinadas à impressão/exportação em PDF.
-
-
-## Dashboard de avaliações
-Ao finalizar uma avaliação, o sistema salva o registro no armazenamento local do navegador e direciona para o Dashboard de Avaliações.
-
-Recursos:
-- Histórico de todas as avaliações realizadas no navegador;
-- Visualizar (ícone de olho);
-- Editar (ícone de lápis);
-- Apagar com confirmação (ícone de lixeira);
-- KPIs consolidados: total de avaliações, Lead Time médio, redução potencial média e avaliações críticas;
-- Nova avaliação diretamente pelo dashboard;
-- Logo oficial ARPEN atualizada em `public/logo-arpen.png`.
-
-Observação: nesta versão os dados são persistidos em `localStorage`. Para uso multiusuário/online compartilhado, a próxima etapa recomendada é Supabase ou outro banco central.
-
-## Correção v2 — Finalizar Avaliação
-O fluxo de finalização foi blindado para:
-- abrir o Dashboard mesmo quando o navegador bloquear `localStorage`;
-- utilizar ID alternativo se `crypto.randomUUID()` não estiver disponível;
-- impedir que falhas de persistência interrompam a navegação;
-- normalizar métricas e listas antes do salvamento.
+## Persistência
+Nesta versão, o histórico fica salvo no `localStorage` do navegador. Para uso multiusuário, o próximo passo é conectar a um banco central.
