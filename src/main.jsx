@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowLeft, ArrowRight, CheckCircle2, Plus, Trash2, Activity, Clock3, Gauge, AlertTriangle, FileDown, GitBranch, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, Plus, Trash2, Activity, Clock3, Gauge, AlertTriangle, FileDown, GitBranch, Sparkles, TrendingDown } from 'lucide-react'
 import './styles.css'
 
 const wastes = [
