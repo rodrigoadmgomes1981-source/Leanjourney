@@ -19,3 +19,12 @@ npm run dev
 
 ## Persistência
 Nesta versão, o histórico fica salvo no `localStorage` do navegador. Para uso multiusuário, o próximo passo é conectar a um banco central.
+
+
+## Subetapas por etapa
+Cada etapa principal agora pode conter subetapas próprias. No rodapé do mapeamento existem três ações:
+1. Incluir subetapa
+2. Próxima etapa
+3. Finalizar avaliação
+
+As subetapas possuem os mesmos campos Lean da etapa principal e participam dos cálculos de processamento, espera, Lead Time, valor agregado, desperdícios, gargalos e análise final.

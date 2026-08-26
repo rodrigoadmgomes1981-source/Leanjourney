@@ -4,10 +4,18 @@ import './styles.css'
 
 const WASTES = ['Superprodução','Espera','Transporte','Processamento excessivo','Estoque','Movimentação','Defeitos / Retrabalho','Talento não utilizado']
 const makeId = () => `id-${Date.now()}-${Math.random().toString(36).slice(2,10)}`
-const blankStage = (n=1) => ({
-  id: makeId(), atendimento:`Etapa ${n}`, sistema:'', responsavel:'', processamento:'', espera:'',
+const blankSubstep = (n=1) => ({
+  id: makeId(), atendimento:`Subetapa ${n}`, sistema:'', responsavel:'', processamento:'', espera:'',
   valorTipo:'VA', gargalos:'', desperdicios:[], oportunidades:''
 })
+const blankStage = (n=1) => ({
+  id: makeId(), atendimento:`Etapa ${n}`, sistema:'', responsavel:'', processamento:'', espera:'',
+  valorTipo:'VA', gargalos:'', desperdicios:[], oportunidades:'', subetapas:[]
+})
+const flattenStages = (stages=[]) => stages.flatMap((stage,stageIndex)=>[
+  {...stage, _kind:'stage', _stageIndex:stageIndex},
+  ...((stage.subetapas||[]).map((sub,subIndex)=>({...sub, _kind:'substep', _stageIndex:stageIndex, _subIndex:subIndex, _parent:stage.atendimento||`Etapa ${stageIndex+1}`})))
+])
 const defaultMeta = () => ({instituicao:'Unimed Araçatuba', unidade:'Pronto Atendimento', avaliador:'', jornada:'Adulto', turno:'Manhã'})
 
 function safeLoad(){
@@ -24,16 +32,17 @@ function safeSave(items){
 function Logo({small=false}){ return <img src="/logo-arpen.png" alt="ARPEN Saúde" className={small?'logo small':'logo'} /> }
 
 function summarize(stages){
-  const proc = stages.reduce((a,s)=>a+(Number(s.processamento)||0),0)
-  const wait = stages.reduce((a,s)=>a+(Number(s.espera)||0),0)
+  const flowItems = flattenStages(stages)
+  const proc = flowItems.reduce((a,s)=>a+(Number(s.processamento)||0),0)
+  const wait = flowItems.reduce((a,s)=>a+(Number(s.espera)||0),0)
   const lead = proc+wait
-  const va = stages.reduce((a,s)=>a+(s.valorTipo==='VA'?(Number(s.processamento)||0):0),0)
+  const va = flowItems.reduce((a,s)=>a+(s.valorTipo==='VA'?(Number(s.processamento)||0):0),0)
   const value = lead ? Math.round((va/lead)*100) : 0
   const wasteMap = {}
-  stages.forEach(s=>(s.desperdicios||[]).forEach(w=>wasteMap[w]=(wasteMap[w]||0)+1))
+  flowItems.forEach(s=>(s.desperdicios||[]).forEach(w=>wasteMap[w]=(wasteMap[w]||0)+1))
   const dominant = Object.entries(wasteMap).sort((a,b)=>b[1]-a[1])
-  const bottleneck = stages.map((s,i)=>({i,name:s.atendimento||`Etapa ${i+1}`,wait:Number(s.espera)||0})).sort((a,b)=>b.wait-a.wait)[0] || {i:0,name:'—',wait:0}
-  const toBeStages = stages.map((s,i)=>{
+  const bottleneck = flowItems.map((s,i)=>({i,name:s.atendimento||`Etapa ${i+1}`,wait:Number(s.espera)||0})).sort((a,b)=>b.wait-a.wait)[0] || {i:0,name:'—',wait:0}
+  const toBeStages = flowItems.map((s,i)=>{
     const p=Number(s.processamento)||0, w=Number(s.espera)||0
     const tw=Math.max(0,Math.round(w*((s.desperdicios||[]).includes('Espera')?0.5:0.7)))
     const tp=Math.max(0,Math.round(p*((s.desperdicios||[]).some(x=>['Defeitos / Retrabalho','Processamento excessivo'].includes(x))?0.85:0.95)))
@@ -69,6 +78,25 @@ function App(){
   const persist=(items)=>{ setEvaluations(items); const ok=safeSave(items); if(!ok)setNotice('A avaliação foi mantida nesta sessão, mas o navegador bloqueou o armazenamento local.') }
   const updateStage=(field,value)=>setStages(prev=>prev.map((s,i)=>i===current?{...s,[field]:value}:s))
   const toggleWaste=(w)=>{ const list=stages[current].desperdicios||[]; updateStage('desperdicios',list.includes(w)?list.filter(x=>x!==w):[...list,w]) }
+  const addSubstep=()=>{
+    setStages(prev=>prev.map((stage,i)=>i===current
+      ? {...stage,subetapas:[...(stage.subetapas||[]),blankSubstep((stage.subetapas||[]).length+1)]}
+      : stage))
+  }
+  const updateSubstep=(subIndex,field,value)=>{
+    setStages(prev=>prev.map((stage,i)=>i===current
+      ? {...stage,subetapas:(stage.subetapas||[]).map((sub,j)=>j===subIndex?{...sub,[field]:value}:sub)}
+      : stage))
+  }
+  const toggleSubWaste=(subIndex,w)=>{
+    const list=stages[current].subetapas?.[subIndex]?.desperdicios||[]
+    updateSubstep(subIndex,'desperdicios',list.includes(w)?list.filter(x=>x!==w):[...list,w])
+  }
+  const removeSubstep=(subIndex)=>{
+    setStages(prev=>prev.map((stage,i)=>i===current
+      ? {...stage,subetapas:(stage.subetapas||[]).filter((_,j)=>j!==subIndex)}
+      : stage))
+  }
   const addStage=()=>{ const n=stages.length+1; setStages(prev=>[...prev,blankStage(n)]); setCurrent(stages.length) }
   const removeStage=()=>{ if(stages.length<=1)return; const next=stages.filter((_,i)=>i!==current); setStages(next); setCurrent(Math.max(0,current-1)) }
   const newAssessment=()=>{ setMeta(defaultMeta()); setStages([blankStage(1)]); setCurrent(0); setEditingId(null); setNotice(''); setScreen('start') }
@@ -76,13 +104,22 @@ function App(){
     const now=new Date().toISOString()
     const rec={
       id:editingId||makeId(), createdAt:editingId?(evaluations.find(x=>x.id===editingId)?.createdAt||now):now, updatedAt:now,
-      meta:{...meta}, stages:stages.map(s=>({...s,desperdicios:[...(s.desperdicios||[])]})),
-      metrics:{lead:summary.lead,proc:summary.proc,wait:summary.wait,value:summary.value,toBeLead:summary.toBeLead,reduction:summary.reduction,gargalos:stages.filter(s=>s.gargalos?.trim()).length,desperdicios:stages.reduce((a,s)=>a+(s.desperdicios||[]).length,0)}
+      meta:{...meta}, stages:stages.map(s=>({
+        ...s,
+        desperdicios:[...(s.desperdicios||[])],
+        subetapas:(s.subetapas||[]).map(sub=>({...sub,desperdicios:[...(sub.desperdicios||[])]}))
+      })),
+      metrics:{lead:summary.lead,proc:summary.proc,wait:summary.wait,value:summary.value,toBeLead:summary.toBeLead,reduction:summary.reduction,gargalos:flattenStages(stages).filter(s=>s.gargalos?.trim()).length,
+        desperdicios:flattenStages(stages).reduce((a,s)=>a+(s.desperdicios||[]).length,0)}
     }
     const next=editingId?evaluations.map(x=>x.id===editingId?rec:x):[rec,...evaluations]
     persist(next); setEditingId(null); setScreen('dashboard')
   }
-  const openEvaluation=(item,mode)=>{ setMeta({...item.meta}); setStages(item.stages.map(s=>({...s,desperdicios:[...(s.desperdicios||[])]}))); setCurrent(0); setEditingId(mode==='edit'?item.id:null); setScreen(mode==='edit'?'mapping':'summary') }
+  const openEvaluation=(item,mode)=>{ setMeta({...item.meta}); setStages(item.stages.map(s=>({
+    ...s,
+    desperdicios:[...(s.desperdicios||[])],
+    subetapas:(s.subetapas||[]).map(sub=>({...sub,desperdicios:[...(sub.desperdicios||[])]}))
+  }))); setCurrent(0); setEditingId(mode==='edit'?item.id:null); setScreen(mode==='edit'?'mapping':'summary') }
   const deleteEvaluation=(id)=>{ if(window.confirm('Deseja apagar esta avaliação? Esta ação não poderá ser desfeita.'))persist(evaluations.filter(x=>x.id!==id)) }
   const exportPDF=()=>window.print()
 
@@ -131,8 +168,32 @@ function App(){
         <TextArea label="Gargalos operacionais" value={s.gargalos} onChange={v=>updateStage('gargalos',v)} placeholder="Filas, esperas, retrabalho, falhas de comunicação..."/>
         <div className="field"><label>7 desperdícios Lean + talento não utilizado</label><div className="chips">{WASTES.map(w=><button key={w} type="button" className={(s.desperdicios||[]).includes(w)?'active':''} onClick={()=>toggleWaste(w)}>{w}</button>)}</div></div>
         <TextArea label="Oportunidades de melhoria" value={s.oportunidades} onChange={v=>updateStage('oportunidades',v)} placeholder="Registre ideias, hipóteses e ações potenciais..."/>
+
+        {(s.subetapas||[]).length>0 && <div className="substepsArea">
+          <div className="substepsHeader"><div><small>DETALHAMENTO DA ETAPA</small><h3>Subetapas vinculadas</h3></div><span>{s.subetapas.length} subetapa{s.subetapas.length===1?'':'s'}</span></div>
+          {(s.subetapas||[]).map((sub,subIndex)=><div className="substepCard" key={sub.id}>
+            <div className="substepTitle"><div><span>SUBETAPA {current+1}.{subIndex+1}</span><strong>{sub.atendimento||`Subetapa ${subIndex+1}`}</strong></div><button type="button" className="linkDanger" onClick={()=>removeSubstep(subIndex)}>🗑 Remover subetapa</button></div>
+            <div className="grid2">
+              <Field label="Subetapa de atendimento" value={sub.atendimento} onChange={v=>updateSubstep(subIndex,'atendimento',v)}/>
+              <Field label="Sistema utilizado" value={sub.sistema} onChange={v=>updateSubstep(subIndex,'sistema',v)}/>
+              <Field label="Responsável" value={sub.responsavel} onChange={v=>updateSubstep(subIndex,'responsavel',v)}/>
+              <Field type="number" label="Tempo de processamento (min)" value={sub.processamento} onChange={v=>updateSubstep(subIndex,'processamento',v)}/>
+              <Field type="number" label="Tempo de espera (min)" value={sub.espera} onChange={v=>updateSubstep(subIndex,'espera',v)}/>
+              <Select label="Classificação de valor" value={sub.valorTipo} onChange={v=>updateSubstep(subIndex,'valorTipo',v)} options={['VA','NVA Necessária','NVA Desperdício']}/>
+            </div>
+            <TextArea label="Gargalos operacionais da subetapa" value={sub.gargalos} onChange={v=>updateSubstep(subIndex,'gargalos',v)} placeholder="Descreva o gargalo específico desta subetapa..."/>
+            <div className="field"><label>Desperdícios Lean da subetapa</label><div className="chips">{WASTES.map(w=><button key={w} type="button" className={(sub.desperdicios||[]).includes(w)?'active':''} onClick={()=>toggleSubWaste(subIndex,w)}>{w}</button>)}</div></div>
+            <TextArea label="Oportunidades de melhoria da subetapa" value={sub.oportunidades} onChange={v=>updateSubstep(subIndex,'oportunidades',v)} placeholder="Ação ou oportunidade específica..."/>
+          </div>)}
+        </div>}
       </section>
-      <div className="bottomActions"><button className="btn secondary" disabled={current===0} onClick={()=>setCurrent(current-1)}>← Anterior</button>{current<stages.length-1?<button className="btn secondary" onClick={()=>setCurrent(current+1)}>Próxima →</button>:<button className="btn secondary" onClick={addStage}>＋ Próxima etapa</button>}<button className="btn primary" onClick={finish}>✓ Finalizar avaliação</button></div>
+      <div className="bottomActions threeActions">
+        <button className="btn substepBtn" type="button" onClick={addSubstep}>＋ Incluir subetapa</button>
+        {current<stages.length-1
+          ? <button className="btn secondary" type="button" onClick={()=>setCurrent(current+1)}>Próxima etapa →</button>
+          : <button className="btn secondary" type="button" onClick={addStage}>＋ Próxima etapa</button>}
+        <button className="btn primary" type="button" onClick={finish}>✓ Finalizar avaliação</button>
+      </div>
     </main>
   </div>
 }
